@@ -1,0 +1,15 @@
+peso.db
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.log
+
+# No necesario para Render
+Dockerfile
+docker-compose.yml
+nginx/
+.dockerignore
+setup.sh
+README.md
+.idea/

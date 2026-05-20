@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Historial de Peso</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a14;
+      --surface: #12121f;
+      --border: #1e1e30;
+      --accent: #e8c547;
+      --blue: #64b5f6;
+      --green: #66bb6a;
+      --red: #ef5350;
+      --text: #f0f0f0;
+      --muted: #888;
+      --mono: 'Share Tech Mono', 'Courier New', monospace;
+      --sans: 'Rajdhani', sans-serif;
+    }
+
+    body { background: var(--bg); color: var(--text); font-family: var(--mono); min-height: 100vh; }
+
+    header {
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border-bottom: 2px solid var(--accent);
+      padding: 20px 24px 14px;
+    }
+    header h1 { font-family: var(--sans); font-size: clamp(22px,5vw,32px); font-weight:700; color: var(--accent); letter-spacing:.1em; text-transform:uppercase; }
+    header p { color: var(--muted); font-size: 12px; letter-spacing:.1em; margin-top:3px; }
+
+    #stats-bar {
+      display: flex; background: #0f0f1a; border-bottom: 1px solid var(--border); overflow-x:auto;
+    }
+    .stat { flex:1 1 80px; min-width:80px; padding:10px 8px; text-align:center; border-right:1px solid var(--border); }
+    .stat:last-child { border-right:none; }
+    .stat-label { font-size:9px; color:#555; letter-spacing:.12em; text-transform:uppercase; }
+    .stat-val { font-size:15px; font-weight:bold; margin-top:3px; }
+
+    main { padding: 18px 16px; max-width: 820px; margin: 0 auto; }
+
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px; margin-bottom: 14px;
+    }
+    .card-label { font-size: 12px; letter-spacing:.1em; text-transform:uppercase; margin-bottom:10px; }
+
+    .form-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    input[type=date], input[type=number], input[type=text] {
+      background: var(--bg); border: 1px solid var(--border); border-radius:6px;
+      color: var(--text); padding: 8px 12px; font-family: var(--mono); font-size:13px;
+      outline:none; flex:1 1 110px; min-width:100px;
+    }
+    input:focus { border-color: var(--blue); }
+
+    button {
+      border:none; border-radius:6px; padding:9px 16px; cursor:pointer;
+      font-family: var(--mono); font-size:13px; font-weight:bold; letter-spacing:.05em;
+      white-space:nowrap; transition: opacity .15s, transform .1s;
+    }
+    button:hover { opacity:.85; transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+    .btn-accent { background: var(--accent); color: #0a0a14; }
+    .btn-blue   { background: var(--blue);   color: #0a0a14; }
+    .btn-muted  { background: var(--border);  color: var(--text); }
+    .btn-danger { background: none; border:1px solid var(--red); color:var(--red); padding:4px 9px; font-size:11px; }
+
+    .tabs { display:flex; gap:8px; margin-bottom:14px; }
+    .tab { background: var(--border); color: var(--text); }
+    .tab.active { background: var(--accent); color: #0a0a14; }
+
+    #chart-wrap {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 20px 12px 10px;
+    }
+    #chart-empty { text-align:center; color:#555; padding:60px 20px; }
+    #chart-empty .icon { font-size:42px; margin-bottom:10px; }
+    canvas { max-height: 360px; }
+    #chart-note { text-align:center; color:#444; font-size:11px; margin-top:6px; }
+
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    thead tr { background: #1a1a2e; border-bottom: 2px solid var(--accent); }
+    th { padding:10px 12px; color:var(--accent); font-weight:bold; text-align:left; letter-spacing:.05em; }
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:nth-child(even) { background: #0f0f1a; }
+    td { padding:9px 12px; }
+    .td-num  { color: var(--blue); font-weight:bold; }
+    .td-up   { color: var(--red); }
+    .td-down { color: var(--green); }
+    .td-eq   { color: var(--muted); }
+
+    .toast {
+      position:fixed; bottom:24px; right:24px;
+      background: var(--green); color:#0a0a14; border-radius:8px;
+      padding:10px 18px; font-weight:bold; font-size:13px;
+      opacity:0; transform:translateY(10px);
+      transition: opacity .3s, transform .3s;
+      pointer-events:none; z-index:999;
+    }
+    .toast.show { opacity:1; transform:translateY(0); }
+
+    footer { text-align:center; color:#333; font-size:11px; padding:16px; letter-spacing:.08em; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⚖ Historial de Peso</h1>
+  <p>Registro · Fluctuaciones · Meta de peso</p>
+</header>
+
+<div id="stats-bar">
+  <div class="stat"><div class="stat-label">Inicio</div><div class="stat-val" id="s-inicio" style="color:#888">—</div></div>
+  <div class="stat"><div class="stat-label">Actual</div><div class="stat-val" id="s-actual" style="color:var(--blue)">—</div></div>
+  <div class="stat"><div class="stat-label">Meta</div><div class="stat-val" id="s-meta" style="color:var(--accent)">—</div></div>
+  <div class="stat"><div class="stat-label">Perdido</div><div class="stat-val" id="s-perdido" style="color:var(--green)">—</div></div>
+  <div class="stat"><div class="stat-label">Falta</div><div class="stat-val" id="s-falta" style="color:var(--red)">—</div></div>
+</div>
+
+<main>
+
+  <!-- Meta -->
+  <div class="card">
+    <div class="card-label" style="color:var(--accent)">🎯 Meta de Peso</div>
+    <div class="form-row">
+      <input type="number" id="input-meta" placeholder="ej: 75.0" step="0.1" />
+      <button class="btn-accent" onclick="guardarMeta()">Guardar Meta</button>
+    </div>
+  </div>
+
+  <!-- Nuevo peso -->
+  <div class="card">
+    <div class="card-label" style="color:var(--blue)">➕ Registrar Peso</div>
+    <div class="form-row">
+      <input type="date" id="input-fecha" />
+      <input type="number" id="input-peso" placeholder="Peso (kg)" step="0.1" />
+      <button class="btn-blue" onclick="agregarPeso()">Registrar</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" id="tab-chart" onclick="switchTab('chart')">📈 Gráfica</button>
+    <button class="tab" id="tab-table" onclick="switchTab('table')">📋 Historial</button>
+  </div>
+
+  <!-- Chart -->
+  <div id="view-chart">
+    <div id="chart-wrap">
+      <div id="chart-empty">
+        <div class="icon">📉</div>
+        <div>Registra al menos 2 pesos para ver la gráfica</div>
+      </div>
+      <canvas id="myChart" style="display:none"></canvas>
+      <p id="chart-note" style="display:none">Línea azul = peso real · Línea amarilla punteada = trayectoria a meta</p>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div id="view-table" style="display:none">
+    <div class="card" style="padding:0; overflow:hidden;">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Fecha</th><th>Peso (kg)</th><th>Δ Anterior</th></tr>
+        </thead>
+        <tbody id="tabla-body"></tbody>
+      </table>
+      <div id="tabla-empty" style="text-align:center;color:#555;padding:50px 20px;display:none">No hay registros aún.</div>
+    </div>
+  </div>
+
+    <div style="text-align:right;margin-top:10px">
+    <button class="btn-muted" style="font-size:11px;padding:7px 14px" onclick="exportarCSV()">⬇ Exportar CSV</button>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<footer>Historial de Peso · Flask + SQLite · Chart.js</footer>
+
+<script>
+let registros = [];
+let config = {};
+let chart = null;
+
+async function cargarDatos() {
+  const [r1, r2] = await Promise.all([
+    fetch("/api/registros").then(r => r.json()),
+    fetch("/api/config").then(r => r.json())
+  ]);
+  registros = r1;
+  config = r2;
+  if (config.meta) document.getElementById("input-meta").placeholder = `Meta actual: ${config.meta} kg`;
+  renderStats();
+  renderChart();
+  renderTabla();
+}
+
+function renderStats() {
+  const meta = config.meta ? parseFloat(config.meta) : null;
+  const inicio = registros.length ? registros[0].peso : null;
+  const actual = registros.length ? registros[registros.length-1].peso : null;
+  const perdido = inicio && actual ? (inicio - actual) : null;
+  const falta = meta && actual ? (actual - meta) : null;
+
+  document.getElementById("s-inicio").textContent = inicio ? `${inicio.toFixed(1)} kg` : "—";
+  document.getElementById("s-actual").textContent = actual ? `${actual.toFixed(1)} kg` : "—";
+  document.getElementById("s-meta").textContent = meta ? `${meta} kg` : "—";
+  document.getElementById("s-perdido").textContent = perdido !== null ? `${perdido.toFixed(1)} kg` : "—";
+  if (falta !== null) {
+    document.getElementById("s-falta").textContent = falta <= 0 ? "✓ Meta!" : `${falta.toFixed(1)} kg`;
+    document.getElementById("s-falta").style.color = falta <= 0 ? "var(--green)" : "var(--red)";
+  } else {
+    document.getElementById("s-falta").textContent = "—";
+  }
+}
+
+function renderChart() {
+  const wrap = document.getElementById("chart-wrap");
+  const empty = document.getElementById("chart-empty");
+  const canvas = document.getElementById("myChart");
+  const note = document.getElementById("chart-note");
+
+  if (registros.length < 2) {
+    empty.style.display = "block"; canvas.style.display = "none"; note.style.display = "none";
+    if (chart) { chart.destroy(); chart = null; }
+    return;
+  }
+  empty.style.display = "none"; canvas.style.display = "block"; note.style.display = "block";
+
+  const labels = registros.map(r => r.fecha);
+  const pesos  = registros.map(r => r.peso);
+  const meta   = config.meta ? parseFloat(config.meta) : null;
+
+  // Goal trendline
+  let metaLine = null;
+  if (meta !== null && pesos.length > 1) {
+    const start = pesos[0];
+    metaLine = pesos.map((_, i) => parseFloat((start - (start - meta) / (pesos.length - 1) * i).toFixed(2)));
+  }
+
+  const datasets = [
+    {
+      label: "Peso real",
+      data: pesos,
+      borderColor: "#64b5f6",
+      backgroundColor: "rgba(100,181,246,0.08)",
+      borderWidth: 2.5,
+      pointBackgroundColor: "#0a0a14",
+      pointBorderColor: "#e8c547",
+      pointBorderWidth: 2,
+      pointRadius: 5,
+      tension: 0,
+      fill: false,
+    }
+  ];
+
+  if (metaLine) {
+    datasets.push({
+      label: "Trayectoria a meta",
+      data: metaLine,
+      borderColor: "#e8c547",
+      borderDash: [8, 4],
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0,
+      fill: false,
+    });
+  }
+
+  if (meta !== null) {
+    datasets.push({
+      label: `Meta: ${meta} kg`,
+      data: labels.map(() => meta),
+      borderColor: "rgba(232,197,71,0.3)",
+      borderDash: [3, 6],
+      borderWidth: 1,
+      pointRadius: 0,
+      fill: false,
+    });
+  }
+
+  const allVals = [...pesos, ...(metaLine || []), meta].filter(v => v != null);
+  const minY = Math.floor(Math.min(...allVals) - 2);
+  const maxY = Math.ceil(Math.max(...allVals) + 2);
+
+  if (chart) chart.destroy();
+  chart = new Chart(canvas, {
+    type: "line",
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: "#888", font: { family: "'Share Tech Mono', monospace", size: 11 } }
+        },
+        tooltip: {
+          backgroundColor: "#0f0f1a",
+          borderColor: "#e8c547",
+          borderWidth: 1,
+          titleColor: "#e8c547",
+          bodyColor: "#f0f0f0",
+          titleFont: { family: "Share Tech Mono", size: 12 },
+          bodyFont: { family: "Share Tech Mono", size: 12 },
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} kg`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: "#888", font: { family: "Share Tech Mono", size: 11 } },
+          grid: { color: "#1e1e30" },
+          title: { display: true, text: "FECHA", color: "#555", font: { family: "Share Tech Mono", size: 11 } }
+        },
+        y: {
+          min: minY, max: maxY,
+          ticks: { color: "#888", font: { family: "Share Tech Mono", size: 11 }, callback: v => v + " kg" },
+          grid: { color: "#1e1e30" },
+          title: { display: true, text: "PESO (kg)", color: "#555", font: { family: "Share Tech Mono", size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+function renderTabla() {
+  const tbody = document.getElementById("tabla-body");
+  const empty = document.getElementById("tabla-empty");
+  tbody.innerHTML = "";
+  const inv = [...registros].reverse();
+  if (inv.length === 0) { empty.style.display="block"; return; }
+  empty.style.display = "none";
+  inv.forEach((r, i) => {
+    const origIdx = registros.length - 1 - i;
+    const prev = registros[origIdx - 1];
+    const delta = prev ? (r.peso - prev.peso) : null;
+    const dStr = delta === null ? "—" : (delta > 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1));
+    const dClass = delta === null ? "td-eq" : delta < 0 ? "td-down" : delta > 0 ? "td-up" : "td-eq";
+    tbody.innerHTML += `
+      <tr>
+        <td style="color:#555">${origIdx+1}</td>
+        <td style="color:#aaa">${r.fecha}</td>
+        <td class="td-num">${r.peso.toFixed(1)}</td>
+        <td class="${dClass}">${dStr}</td>
+      </tr>`;
+  });
+}
+
+async function agregarPeso() {
+  const fecha = document.getElementById("input-fecha").value;
+  const peso  = document.getElementById("input-peso").value;
+  if (!fecha || !peso) { showToast("Completa fecha y peso", "var(--red)"); return; }
+  await fetch("/api/registros", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ fecha, peso: parseFloat(peso) })
+  });
+  document.getElementById("input-peso").value = "";
+  showToast("✓ Peso registrado");
+  cargarDatos();
+}
+
+async function guardarMeta() {
+  const val = document.getElementById("input-meta").value;
+  if (!val) return;
+  await fetch("/api/config", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ meta: parseFloat(val) })
+  });
+  document.getElementById("input-meta").value = "";
+  showToast("✓ Meta guardada");
+  cargarDatos();
+}
+
+function exportarCSV() {
+  const rows = [["id","fecha","peso_kg"], ...registros.map(r => [r.id, r.fecha, r.peso])];
+  const csv = rows.map(r => r.join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+  a.download = "historial_peso.csv";
+  a.click();
+}
+
+function switchTab(tab) {
+  document.getElementById("view-chart").style.display = tab === "chart" ? "block" : "none";
+  document.getElementById("view-table").style.display = tab === "table" ? "block" : "none";
+  document.getElementById("tab-chart").classList.toggle("active", tab === "chart");
+  document.getElementById("tab-table").classList.toggle("active", tab === "table");
+  if (tab === "chart") renderChart();
+}
+
+function showToast(msg, color="var(--green)") {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.style.background = color;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+// Set today's date as default
+document.getElementById("input-fecha").valueAsDate = new Date();
+cargarDatos();
+</script>
+</body>
+</html>
