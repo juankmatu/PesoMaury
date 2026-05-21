@@ -176,6 +176,8 @@
 
     <div style="text-align:right;margin-top:10px">
     <button class="btn-muted" style="font-size:11px;padding:7px 14px" onclick="exportarCSV()">⬇ Exportar CSV</button>
+    &nbsp;
+    <button class="btn-danger" onclick="borrarTodo()">🗑 Borrar todo</button>
   </div>
 </main>
 
@@ -378,6 +380,13 @@ async function guardarMeta() {
   });
   document.getElementById("input-meta").value = "";
   showToast("✓ Meta guardada");
+  cargarDatos();
+}
+
+async function borrarTodo() {
+  if (!confirm("¿Borrar TODOS los registros?")) return;
+  await fetch("/api/registros", { method:"DELETE" });
+  showToast("Historial eliminado", "var(--red)");
   cargarDatos();
 }
 
