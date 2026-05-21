@@ -3,8 +3,6 @@ import os
 
 app = Flask(__name__)
 
-# ── Database setup ──────────────────────────────────────────
-
 if "DATABASE_URL" in os.environ:
     import psycopg2
     import psycopg2.extras
@@ -38,7 +36,7 @@ if "DATABASE_URL" in os.environ:
 else:
     import sqlite3
 
-    DB = os.environ.get("DB_PATH", "peso.db")
+    DB = os.environ.get("DB_PATH", "maurydb.db")
 
     def get_db():
         conn = sqlite3.connect(DB)
@@ -67,14 +65,13 @@ else:
 
     PH = "?"
 
-
-# ── Helpers ─────────────────────────────────────────────────
-
 IS_PG = "DATABASE_URL" in os.environ
+
+init_db()
 
 
 def _exec(sql, params=None):
-    """Execute and optionally return rows."""
+
     with get_db() as conn:
         if IS_PG:
             with conn.cursor() as cur:
@@ -89,9 +86,6 @@ def _exec(sql, params=None):
             if rows.description:
                 return rows_to_dicts(rows)
             conn.commit()
-
-
-# ── Routes ─────────────────────────────────────────────────
 
 @app.route("/")
 def index():
