@@ -122,6 +122,18 @@ def add_registro():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/registros/<int:id>", methods=["DELETE"])
+def delete_registro(id):
+    _exec("DELETE FROM registros WHERE id = " + PH, (id,))
+    return jsonify({"ok": True})
+
+
+@app.route("/api/registros", methods=["DELETE"])
+def delete_all_registros():
+    _exec("DELETE FROM registros")
+    return jsonify({"ok": True})
+
+
 @app.route("/api/config", methods=["GET"])
 def get_config():
     rows = _exec("SELECT clave, valor FROM config") or []
