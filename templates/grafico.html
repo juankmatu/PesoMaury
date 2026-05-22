@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gráfica - Historial de Peso</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a14;
+      --surface: #12121f;
+      --border: #1e1e30;
+      --accent: #e8c547;
+      --blue: #64b5f6;
+      --green: #66bb6a;
+      --red: #ef5350;
+      --text: #f0f0f0;
+      --muted: #888;
+      --mono: 'Share Tech Mono', 'Courier New', monospace;
+      --sans: 'Rajdhani', sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border-bottom: 2px solid var(--accent);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { font-family: var(--sans); font-size: clamp(18px,4vw,28px); font-weight:700; color: var(--accent); letter-spacing:.1em; text-transform:uppercase; }
+    header a { color: var(--blue); text-decoration: none; font-size: 13px; }
+    header a:hover { text-decoration: underline; }
+
+    #chart-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #chart-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 100%;
+      max-width: 1100px;
+      max-height: 90vh;
+    }
+    #chart-empty {
+      text-align: center;
+      color: #555;
+      padding: 80px 20px;
+    }
+    #chart-empty .icon { font-size: 48px; margin-bottom: 12px; }
+    #chart-note { text-align: center; color: #444; font-size: 12px; margin-top: 8px; }
+    canvas { width: 100% !important; height: auto !important; max-height: 70vh; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📈 Gráfica de Peso</h1>
+  <a href="/">← Volver al inicio</a>
+</header>
+
+<div id="chart-container">
+  <div id="chart-wrap">
+    <div id="chart-empty">
+      <div class="icon">📉</div>
+      <div>Registra al menos 2 pesos para ver la gráfica</div>
+    </div>
+    <canvas id="myChart" style="display:none"></canvas>
+    <p id="chart-note" style="display:none">Línea azul = peso real · Línea amarilla punteada = trayectoria a meta</p>
+  </div>
+</div>
+
+<script>
+let registros = [];
+let config = {};
+let chart = null;
+
+async function cargarDatos() {
+  const [r1, r2] = await Promise.all([
+    fetch("/api/registros").then(r => r.json()),
+    fetch("/api/config").then(r => r.json())
+  ]);
+  registros = r1;
+  config = r2;
+  renderChart();
+}
+
+function renderChart() {
+  const empty = document.getElementById("chart-empty");
+  const canvas = document.getElementById("myChart");
+  const note = document.getElementById("chart-note");
+
+  if (registros.length < 2) {
+    empty.style.display = "block"; canvas.style.display = "none"; note.style.display = "none";
+    if (chart) { chart.destroy(); chart = null; }
+    return;
+  }
+  empty.style.display = "none"; canvas.style.display = "block"; note.style.display = "block";
+
+  let noteText = "Línea azul = peso real · Línea amarilla punteada = trayectoria a meta";
+  if (config.fecha_limite) {
+    noteText += ` · Fecha límite: ${config.fecha_limite}`;
+  }
+  note.textContent = noteText;
+
+  const labels = registros.map(r => r.fecha);
+  const pesos  = registros.map(r => r.peso);
+  const meta   = config.meta ? parseFloat(config.meta) : null;
+
+  let metaLine = null;
+  if (meta !== null && pesos.length > 1) {
+    const start = pesos[0];
+    metaLine = pesos.map((_, i) => parseFloat((start - (start - meta) / (pesos.length - 1) * i).toFixed(2)));
+  }
+
+  const datasets = [
+    {
+      label: "Peso real",
+      data: pesos,
+      borderColor: "#64b5f6",
+      backgroundColor: "rgba(100,181,246,0.08)",
+      borderWidth: 2.5,
+      pointBackgroundColor: "#0a0a14",
+      pointBorderColor: "#e8c547",
+      pointBorderWidth: 2,
+      pointRadius: 5,
+      tension: 0,
+      fill: false,
+    }
+  ];
+
+  if (metaLine) {
+    datasets.push({
+      label: "Trayectoria a meta",
+      data: metaLine,
+      borderColor: "#e8c547",
+      borderDash: [8, 4],
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0,
+      fill: false,
+    });
+  }
+
+  if (meta !== null) {
+    datasets.push({
+      label: `Meta: ${meta} kg`,
+      data: labels.map(() => meta),
+      borderColor: "rgba(232,197,71,0.3)",
+      borderDash: [3, 6],
+      borderWidth: 1,
+      pointRadius: 0,
+      fill: false,
+    });
+  }
+
+  const allVals = [...pesos, ...(metaLine || []), meta].filter(v => v != null);
+  const minY = Math.floor(Math.min(...allVals) - 2);
+  const maxY = Math.ceil(Math.max(...allVals) + 2);
+
+  if (chart) chart.destroy();
+  chart = new Chart(canvas, {
+    type: "line",
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: "#888", font: { family: "'Share Tech Mono', monospace", size: 13 } }
+        },
+        tooltip: {
+          backgroundColor: "#0f0f1a",
+          borderColor: "#e8c547",
+          borderWidth: 1,
+          titleColor: "#e8c547",
+          bodyColor: "#f0f0f0",
+          titleFont: { family: "Share Tech Mono", size: 13 },
+          bodyFont: { family: "Share Tech Mono", size: 13 },
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} kg`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: "#888", font: { family: "Share Tech Mono", size: 12 } },
+          grid: { color: "#1e1e30" },
+          title: { display: true, text: "FECHA", color: "#555", font: { family: "Share Tech Mono", size: 12 } }
+        },
+        y: {
+          min: minY, max: maxY,
+          ticks: { color: "#888", font: { family: "Share Tech Mono", size: 12 }, callback: v => v + " kg" },
+          grid: { color: "#1e1e30" },
+          title: { display: true, text: "PESO (kg)", color: "#555", font: { family: "Share Tech Mono", size: 12 } }
+        }
+      }
+    }
+  });
+}
+
+cargarDatos();
+</script>
+</body>
+</html>

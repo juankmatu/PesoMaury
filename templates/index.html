@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Historial de Peso</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap');
 
@@ -70,19 +69,6 @@
     .btn-muted  { background: var(--border);  color: var(--text); }
     .btn-danger { background: none; border:1px solid var(--red); color:var(--red); padding:4px 9px; font-size:11px; }
 
-    .tabs { display:flex; gap:8px; margin-bottom:14px; }
-    .tab { background: var(--border); color: var(--text); }
-    .tab.active { background: var(--accent); color: #0a0a14; }
-
-    #chart-wrap {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; padding: 20px 12px 10px;
-    }
-    #chart-empty { text-align:center; color:#555; padding:60px 20px; }
-    #chart-empty .icon { font-size:42px; margin-bottom:10px; }
-    canvas { max-height: 360px; }
-    #chart-note { text-align:center; color:#444; font-size:11px; margin-top:6px; }
-
     table { width:100%; border-collapse:collapse; font-size:13px; }
     thead tr { background: #1a1a2e; border-bottom: 2px solid var(--accent); }
     th { padding:10px 12px; color:var(--accent); font-weight:bold; text-align:left; letter-spacing:.05em; }
@@ -120,6 +106,7 @@
   <div class="stat"><div class="stat-label">Meta</div><div class="stat-val" id="s-meta" style="color:var(--accent)">—</div></div>
   <div class="stat"><div class="stat-label">Perdido</div><div class="stat-val" id="s-perdido" style="color:var(--green)">—</div></div>
   <div class="stat"><div class="stat-label">Falta</div><div class="stat-val" id="s-falta" style="color:var(--red)">—</div></div>
+  <div class="stat"><div class="stat-label">Restan</div><div class="stat-val" id="s-restan" style="color:var(--accent)">—</div></div>
 </div>
 
 <main>
@@ -127,10 +114,12 @@
   <!-- Meta -->
   <div class="card">
     <div class="card-label" style="color:var(--accent)">🎯 Meta de Peso</div>
-    <div class="form-row">
+    <div class="form-row" style="margin-bottom:6px;">
       <input type="number" id="input-meta" placeholder="ej: 75.0" step="0.1" />
+      <input type="date" id="input-fecha-limite" />
       <button class="btn-accent" onclick="guardarMeta()">Guardar Meta</button>
     </div>
+    <div style="font-size:11px;color:var(--muted);">Peso ideal + fecha límite para alcanzarlo</div>
   </div>
 
   <!-- Nuevo peso -->
@@ -143,27 +132,13 @@
     </div>
   </div>
 
-  <!-- Tabs -->
-  <div class="tabs">
-    <button class="tab active" id="tab-chart" onclick="switchTab('chart')">📈 Gráfica</button>
-    <button class="tab" id="tab-table" onclick="switchTab('table')">📋 Historial</button>
-  </div>
-
-  <!-- Chart -->
-  <div id="view-chart">
-    <div id="chart-wrap">
-      <div id="chart-empty">
-        <div class="icon">📉</div>
-        <div>Registra al menos 2 pesos para ver la gráfica</div>
-      </div>
-      <canvas id="myChart" style="display:none"></canvas>
-      <p id="chart-note" style="display:none">Línea azul = peso real · Línea amarilla punteada = trayectoria a meta</p>
-    </div>
+  <!-- Ver gráfica -->
+  <div style="text-align:center; margin-bottom:14px;">
+    <button class="btn-accent" onclick="location.href='/grafico'" style="padding:10px 24px; font-size:14px;">📈 Ver gráfica completa</button>
   </div>
 
   <!-- Table -->
-  <div id="view-table" style="display:none">
-    <div class="card" style="padding:0; overflow:hidden;">
+  <div class="card" style="padding:0; overflow:hidden;">
       <table>
         <thead>
           <tr><th>#</th><th>Fecha</th><th>Peso (kg)</th><th>Δ Anterior</th></tr>
@@ -172,7 +147,6 @@
       </table>
       <div id="tabla-empty" style="text-align:center;color:#555;padding:50px 20px;display:none">No hay registros aún.</div>
     </div>
-  </div>
 
     <div style="text-align:right;margin-top:10px">
     <button class="btn-muted" style="font-size:11px;padding:7px 14px" onclick="exportarCSV()">⬇ Exportar CSV</button>
@@ -191,7 +165,6 @@
 <script>
 let registros = [];
 let config = {};
-let chart = null;
 
 async function cargarDatos() {
   const [r1, r2] = await Promise.all([
@@ -201,8 +174,8 @@ async function cargarDatos() {
   registros = r1;
   config = r2;
   if (config.meta) document.getElementById("input-meta").placeholder = `Meta actual: ${config.meta} kg`;
+  if (config.fecha_limite) document.getElementById("input-fecha-limite").value = config.fecha_limite;
   renderStats();
-  renderChart();
   renderTabla();
 }
 
@@ -212,6 +185,7 @@ function renderStats() {
   const actual = registros.length ? registros[registros.length-1].peso : null;
   const perdido = inicio && actual ? (inicio - actual) : null;
   const falta = meta && actual ? (actual - meta) : null;
+  const fechaLimite = config.fecha_limite || null;
 
   document.getElementById("s-inicio").textContent = inicio ? `${inicio.toFixed(1)} kg` : "—";
   document.getElementById("s-actual").textContent = actual ? `${actual.toFixed(1)} kg` : "—";
@@ -223,116 +197,25 @@ function renderStats() {
   } else {
     document.getElementById("s-falta").textContent = "—";
   }
-}
 
-function renderChart() {
-  const wrap = document.getElementById("chart-wrap");
-  const empty = document.getElementById("chart-empty");
-  const canvas = document.getElementById("myChart");
-  const note = document.getElementById("chart-note");
-
-  if (registros.length < 2) {
-    empty.style.display = "block"; canvas.style.display = "none"; note.style.display = "none";
-    if (chart) { chart.destroy(); chart = null; }
-    return;
-  }
-  empty.style.display = "none"; canvas.style.display = "block"; note.style.display = "block";
-
-  const labels = registros.map(r => r.fecha);
-  const pesos  = registros.map(r => r.peso);
-  const meta   = config.meta ? parseFloat(config.meta) : null;
-
-  // Goal trendline
-  let metaLine = null;
-  if (meta !== null && pesos.length > 1) {
-    const start = pesos[0];
-    metaLine = pesos.map((_, i) => parseFloat((start - (start - meta) / (pesos.length - 1) * i).toFixed(2)));
-  }
-
-  const datasets = [
-    {
-      label: "Peso real",
-      data: pesos,
-      borderColor: "#64b5f6",
-      backgroundColor: "rgba(100,181,246,0.08)",
-      borderWidth: 2.5,
-      pointBackgroundColor: "#0a0a14",
-      pointBorderColor: "#e8c547",
-      pointBorderWidth: 2,
-      pointRadius: 5,
-      tension: 0,
-      fill: false,
+  if (fechaLimite) {
+    const hoy = new Date();
+    const limite = new Date(fechaLimite + "T23:59:59");
+    const diff = Math.ceil((limite - hoy) / (1000 * 60 * 60 * 24));
+    const el = document.getElementById("s-restan");
+    if (diff > 0) {
+      el.textContent = `${diff} días`;
+      el.style.color = "var(--accent)";
+    } else if (diff === 0) {
+      el.textContent = "¡Hoy!";
+      el.style.color = "var(--red)";
+    } else {
+      el.textContent = `${Math.abs(diff)} días atrás`;
+      el.style.color = "var(--red)";
     }
-  ];
-
-  if (metaLine) {
-    datasets.push({
-      label: "Trayectoria a meta",
-      data: metaLine,
-      borderColor: "#e8c547",
-      borderDash: [8, 4],
-      borderWidth: 2,
-      pointRadius: 0,
-      tension: 0,
-      fill: false,
-    });
+  } else {
+    document.getElementById("s-restan").textContent = "—";
   }
-
-  if (meta !== null) {
-    datasets.push({
-      label: `Meta: ${meta} kg`,
-      data: labels.map(() => meta),
-      borderColor: "rgba(232,197,71,0.3)",
-      borderDash: [3, 6],
-      borderWidth: 1,
-      pointRadius: 0,
-      fill: false,
-    });
-  }
-
-  const allVals = [...pesos, ...(metaLine || []), meta].filter(v => v != null);
-  const minY = Math.floor(Math.min(...allVals) - 2);
-  const maxY = Math.ceil(Math.max(...allVals) + 2);
-
-  if (chart) chart.destroy();
-  chart = new Chart(canvas, {
-    type: "line",
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      interaction: { mode: "index", intersect: false },
-      plugins: {
-        legend: {
-          labels: { color: "#888", font: { family: "'Share Tech Mono', monospace", size: 11 } }
-        },
-        tooltip: {
-          backgroundColor: "#0f0f1a",
-          borderColor: "#e8c547",
-          borderWidth: 1,
-          titleColor: "#e8c547",
-          bodyColor: "#f0f0f0",
-          titleFont: { family: "Share Tech Mono", size: 12 },
-          bodyFont: { family: "Share Tech Mono", size: 12 },
-          callbacks: {
-            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} kg`
-          }
-        }
-      },
-      scales: {
-        x: {
-          ticks: { color: "#888", font: { family: "Share Tech Mono", size: 11 } },
-          grid: { color: "#1e1e30" },
-          title: { display: true, text: "FECHA", color: "#555", font: { family: "Share Tech Mono", size: 11 } }
-        },
-        y: {
-          min: minY, max: maxY,
-          ticks: { color: "#888", font: { family: "Share Tech Mono", size: 11 }, callback: v => v + " kg" },
-          grid: { color: "#1e1e30" },
-          title: { display: true, text: "PESO (kg)", color: "#555", font: { family: "Share Tech Mono", size: 11 } }
-        }
-      }
-    }
-  });
 }
 
 function renderTabla() {
@@ -373,10 +256,14 @@ async function agregarPeso() {
 
 async function guardarMeta() {
   const val = document.getElementById("input-meta").value;
-  if (!val) return;
+  const fechaLimite = document.getElementById("input-fecha-limite").value;
+  const payload = {};
+  if (val) payload.meta = parseFloat(val);
+  if (fechaLimite) payload.fecha_limite = fechaLimite;
+  if (Object.keys(payload).length === 0) return;
   await fetch("/api/config", {
     method:"POST", headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({ meta: parseFloat(val) })
+    body: JSON.stringify(payload)
   });
   document.getElementById("input-meta").value = "";
   showToast("✓ Meta guardada");
@@ -397,14 +284,6 @@ function exportarCSV() {
   a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
   a.download = "historial_peso.csv";
   a.click();
-}
-
-function switchTab(tab) {
-  document.getElementById("view-chart").style.display = tab === "chart" ? "block" : "none";
-  document.getElementById("view-table").style.display = tab === "table" ? "block" : "none";
-  document.getElementById("tab-chart").classList.toggle("active", tab === "chart");
-  document.getElementById("tab-table").classList.toggle("active", tab === "table");
-  if (tab === "chart") renderChart();
 }
 
 function showToast(msg, color="var(--green)") {
