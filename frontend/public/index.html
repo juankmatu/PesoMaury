@@ -126,7 +126,7 @@
 
   <!-- Meta -->
   <div class="card">
-    <div class="card-label" style="color:var(--accent)">🎯 Meta de Peso</div>
+    <div class="card-label" style="color:var(--accent)">Meta de Peso</div>
     <div class="form-row">
       <input type="number" id="input-meta" placeholder="ej: 75.0" step="0.1" />
       <button class="btn-accent" onclick="guardarMeta()">Guardar Meta</button>
@@ -135,7 +135,7 @@
 
   <!-- Nuevo peso -->
   <div class="card">
-    <div class="card-label" style="color:var(--blue)">➕ Registrar Peso</div>
+    <div class="card-label" style="color:var(--blue)">Registrar Peso</div>
     <div class="form-row">
       <input type="date" id="input-fecha" />
       <input type="number" id="input-peso" placeholder="Peso (kg)" step="0.1" />
@@ -145,8 +145,8 @@
 
   <!-- Tabs -->
   <div class="tabs">
-    <button class="tab active" id="tab-chart" onclick="switchTab('chart')">📈 Gráfica</button>
-    <button class="tab" id="tab-table" onclick="switchTab('table')">📋 Historial</button>
+    <button class="tab active" id="tab-chart" onclick="switchTab('chart')">Grafica</button>
+    <button class="tab" id="tab-table" onclick="switchTab('table')">Historial</button>
   </div>
 
   <!-- Chart -->
@@ -154,10 +154,10 @@
     <div id="chart-wrap">
       <div id="chart-empty">
         <div class="icon">📉</div>
-        <div>Registra al menos 2 pesos para ver la gráfica</div>
+        <div>Registra al menos 2 pesos para ver la grafica</div>
       </div>
       <canvas id="myChart" style="display:none"></canvas>
-      <p id="chart-note" style="display:none">Línea azul = peso real · Línea amarilla punteada = trayectoria a meta</p>
+      <p id="chart-note" style="display:none">Linea azul = peso real - Linea amarilla punteada = trayectoria a meta</p>
     </div>
   </div>
 
@@ -166,26 +166,26 @@
     <div class="card" style="padding:0; overflow:hidden;">
       <table>
         <thead>
-          <tr><th>#</th><th>Fecha</th><th>Peso (kg)</th><th>Δ Anterior</th></tr>
+          <tr><th>#</th><th>Fecha</th><th>Peso (kg)</th><th>Cambio</th></tr>
         </thead>
         <tbody id="tabla-body"></tbody>
       </table>
-      <div id="tabla-empty" style="text-align:center;color:#555;padding:50px 20px;display:none">No hay registros aún.</div>
+      <div id="tabla-empty" style="text-align:center;color:#555;padding:50px 20px;display:none">No hay registros aun.</div>
     </div>
   </div>
 
     <div style="text-align:right;margin-top:10px">
-    <button class="btn-muted" style="font-size:11px;padding:7px 14px" onclick="exportarCSV()">⬇ Exportar CSV</button>
+    <button class="btn-muted" style="font-size:11px;padding:7px 14px" onclick="exportarCSV()">Exportar CSV</button>
     &nbsp;
-    <button class="btn-danger" onclick="borrarTodo()">🗑 Borrar todo</button>
+    <button class="btn-danger" onclick="borrarTodo()">Borrar todo</button>
   </div>
 </main>
 
 <div class="toast" id="toast"></div>
 
-<footer><H1 style="color: aliceblue">Historial de Peso · Flask + PosgreSQL · Chart.js</H1>
+<footer><h1 style="color: aliceblue">Historial de Peso - FastAPI + PostgreSQL - Chart.js</h1>
     <br>
-    <H2 STYLE="color: antiquewhite">JDWEB</H2>
+    <h2 style="color: antiquewhite">JDWEB</h2>
 </footer>
 
 <script>
@@ -218,7 +218,7 @@ function renderStats() {
   document.getElementById("s-meta").textContent = meta ? `${meta} kg` : "—";
   document.getElementById("s-perdido").textContent = perdido !== null ? `${perdido.toFixed(1)} kg` : "—";
   if (falta !== null) {
-    document.getElementById("s-falta").textContent = falta <= 0 ? "✓ Meta!" : `${falta.toFixed(1)} kg`;
+    document.getElementById("s-falta").textContent = falta <= 0 ? "Meta!" : `${falta.toFixed(1)} kg`;
     document.getElementById("s-falta").style.color = falta <= 0 ? "var(--green)" : "var(--red)";
   } else {
     document.getElementById("s-falta").textContent = "—";
@@ -367,7 +367,7 @@ async function agregarPeso() {
     body: JSON.stringify({ fecha, peso: parseFloat(peso) })
   });
   document.getElementById("input-peso").value = "";
-  showToast("✓ Peso registrado");
+  showToast("Peso registrado");
   cargarDatos();
 }
 
@@ -379,12 +379,12 @@ async function guardarMeta() {
     body: JSON.stringify({ meta: parseFloat(val) })
   });
   document.getElementById("input-meta").value = "";
-  showToast("✓ Meta guardada");
+  showToast("Meta guardada");
   cargarDatos();
 }
 
 async function borrarTodo() {
-  if (!confirm("¿Borrar TODOS los registros?")) return;
+  if (!confirm("Borrar TODOS los registros?")) return;
   await fetch("/api/registros", { method:"DELETE" });
   showToast("Historial eliminado", "var(--red)");
   cargarDatos();

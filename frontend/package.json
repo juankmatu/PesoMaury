@@ -1,0 +1,12 @@
+{
+  "name": "peso-maury-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "serve public -l 3001",
+    "build": "echo 'Static build'"
+  },
+  "dependencies": {
+    "serve": "^14.2.0"
+  }
+}
